@@ -12,6 +12,7 @@ import base64
 import IdentificationServiceHttpClientHelper
 import datetime
 from aip import AipSpeech
+import ast
 
 try:
         import Tkinter, ttk
@@ -20,6 +21,8 @@ except:
         import tkinter.ttk as ttk
 filePath = './data/tmp.wav'
 fs = 16000
+duration = 15  # seconds
+
 try:
     os.remove(filePath)
 except OSError:
@@ -34,10 +37,10 @@ class Pen(Tkinter.Tk):
         self.create_additional_widgets()
         self.rec_status = 'start'
         self.profile_ids = ['aabd9804-3c66-46d1-b8d3-4598b8aca4d8',
-                            '7874fb49-1c07-493c-b948-a496d6b1d1a9',
-                            'cce7883d-51b8-45aa-8474-1e6b987e5dbf',
-                            'cb86bd34-55fb-41b2-8995-02c6f170672a',
-                            'cc4c4bee-adab-47f1-91f3-d45b961f09c5']
+                    '7874fb49-1c07-493c-b948-a496d6b1d1a9',
+                    'cce7883d-51b8-45aa-8474-1e6b987e5dbf',
+               '40bb2f18-1f20-4107-a915-b6ff3391fbdb',
+               'efc2af15-724e-4ace-ab5c-b1ca37fcdcbb']
         self.profile_nms = ['kai', 'kun', 'wenpeng', 'gongjing', 'zhengwei']
 
         # read profiles from server and update self.profile_ids
@@ -57,7 +60,6 @@ class Pen(Tkinter.Tk):
             self.rec_status = 'recording'
             self.Sending_Button['text'] = 'recording'
 
-            duration = 5  # seconds
             myrecording = sd.rec(duration * fs, samplerate=fs, channels=1)  # array(fs)
             print("Recording Audio")
             sd.wait()
@@ -85,7 +87,7 @@ class Pen(Tkinter.Tk):
         # elif self.rec_status == 'recording':
             # end record
             self.rec_status = 'start'
-            self.Sending_Button['text'] = 'start'
+            self.Sending_Button['text'] = '启动'
 
             print('\n录制结束: ' + repr(filePath) + '，正在进行语音识别...')
             t0 = time.time()
@@ -113,10 +115,14 @@ class Pen(Tkinter.Tk):
                         'X-CheckSum': x_checksum}
             req = urllib.request.Request(url, body, x_header)
             result = urllib.request.urlopen(req)
+            print('result_0:', type(result), result)
             result = result.read().decode("utf-8")
-            print('result_responce:', result)
-            result = re.findall(u'[\u4e00-\u9fff]+', result)
-            article_cn = '，'.join(result)
+            result_dict = ast.literal_eval(result)
+            print('result_dict:', type(result_dict), result_dict)
+            # result = re.findall(u'[\u4e00-\u9fff]+', result)
+            # article_cn = '，'.join(result)
+            article_cn = result_dict['data']
+            print('article_cn:', type(article_cn), article_cn)
 
             # 1.2, 备用语音识别------------------------------------
             if article_cn == '':
@@ -135,7 +141,6 @@ class Pen(Tkinter.Tk):
                 article_cn = result['result'][0] if 'result' in result.keys() else 'connect baidu error'
                 print('Recognition result:', article_cn)
 
-            article_cn = article_cn + '。'
             print('语音识别结果:', article_cn)
             # print('语音识别耗时:', time.time() - t0, 's')
 
@@ -144,15 +149,15 @@ class Pen(Tkinter.Tk):
             # print('开始摘要预测...')
             title_cn = requests.get('http://35.229.131.169:8008', params=payload)
             # title_cn = requests.get('http://127.0.0.1:8008', params=payload)
-            print('摘要预测结果:', title_cn.text.rstrip().replace('<unk>', '').replace('<UNK>', '') + '*')
+            print('摘要预测结果:', title_cn.text.rstrip().replace('<unk>', '').replace('<UNK>', ''))
 
             # 3，声纹识别------------------------------------
-            print('current self.profile_ids:', self.profile_ids)
+            # print('current self.profile_ids:', self.profile_ids)
 
             helper = IdentificationServiceHttpClientHelper.IdentificationServiceHttpClientHelper('ccc2411ed1bb496fbc3aaf42540e81ac')
             identification_response = helper.identify_file(filePath, self.profile_ids, 'true')
             id = identification_response.get_identified_profile_id()
-            print('current profile_id:', id)
+            # print('current profile_id:', id)
             name = self.profile_nms[self.profile_ids.index(id)] if id in self.profile_ids else 'stranger'
             print('声纹鉴定结果:', name)
             print('鉴定confidence：', identification_response.get_confidence())
@@ -170,7 +175,7 @@ class Pen(Tkinter.Tk):
 
             start = self.history_article.index('end') + "-1l"
             self.history_article.insert("end", str(datetime.datetime.now()).split('.')[0] + '\n')
-            self.history_article.insert("end", name + ': ' + article_cn)
+            self.history_article.insert("end", name + ': ' + article_cn + '\n')
             self.history_article.insert("end", '\n')
             end = self.history_article.index('end') + "-1l"
             self.history_article.tag_add("SENDBYME", start, end)
@@ -261,15 +266,15 @@ class Pen(Tkinter.Tk):
         #
         # self.Sending_data.pack(side='left')
 
-        self.Enroll_Button = Tkinter.Button(self.Sending_panel, text='enroll', width=15, height=1, bg='orange',
+        self.Enroll_Button = Tkinter.Button(self.Sending_panel, text='注册', width=15, height=1, bg='orange',
                                             command=self.enroll_new_profile, activebackground='lightgreen')
         self.Enroll_Button.pack(side='left')
 
-        self.Sending_Button = Tkinter.Button(self.Sending_panel, text='start', width=15, height=1, bg='orange',
+        self.Sending_Button = Tkinter.Button(self.Sending_panel, text='启动', width=15, height=1, bg='orange',
                                              command=self.start_stop_record, activebackground='lightgreen')
         self.Sending_Button.pack(side='left')
 
-        self.Print_Button = Tkinter.Button(self.Sending_panel, text='print_all', width=15, height=1, bg='orange',
+        self.Print_Button = Tkinter.Button(self.Sending_panel, text='打印数据库', width=15, height=1, bg='orange',
                                              command=self.print_all, activebackground='lightgreen')
         self.Print_Button.pack(side='left')
 
@@ -287,13 +292,13 @@ class Pen(Tkinter.Tk):
         return
 
     def create_panel_for_widget(self):
-        self.history_frame = Tkinter.LabelFrame(self, text='history_frame ', fg='green', bg='powderblue')
+        self.history_frame = Tkinter.LabelFrame(self, text='摘要对话 ', fg='black', bg='white')
         self.history_frame.pack(side='top')
 
-        self.history_frame_article = Tkinter.LabelFrame(self, text='history_frame_article ', fg='green', bg='powderblue')
+        self.history_frame_article = Tkinter.LabelFrame(self, text='原文对话 ', fg='black', bg='white')
         self.history_frame_article.pack(side='top')
 
-        self.Sending_panel = Tkinter.LabelFrame(self, text='Sending_panel', fg='green', bg='powderblue')
+        self.Sending_panel = Tkinter.LabelFrame(self, text='控制按钮', fg='black', bg='white')
         self.Sending_panel.pack(side='top')
         return
 
